@@ -1,0 +1,355 @@
+'use client'
+
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from "react";
+import { supabase } from '@/lib/supabase/client';
+import Image from 'next/image';
+import { useToast } from '@/context/ToastContext';
+import LottieAnimation from '@/components/Animation'; 
+import animationData from '@/public/Truck.json'; 
+import Oasis from "@/public/Logo.svg";
+
+const SignInPage: React.FC = () => {
+    const [checked, setChecked] = useState<boolean>(false);
+    const [email, setEmail] = useState<string>('');
+    const [password, setPassword] = useState<string>('');
+    const [passwordLoading, setPasswordLoading] = useState<boolean>(false);
+    const [magicLoading, setMagicLoading] = useState<boolean>(false);
+    const [googleLoading, setGoogleLoading] = useState<boolean>(false);
+
+    const router = useRouter();
+    const { showToast } = useToast();
+
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                router.push('/');
+            }
+        };
+        checkUser();
+    }, [router]);
+
+    const SignupClick = () => {
+        router.push('/signup');
+    };
+
+    const TermsClick = () => {
+        router.push('/terms');
+    };
+
+    const PrivacyClick = () => {
+        router.push('/privacy');
+    };
+
+    const isValidEmail = (email: string): boolean => {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    };
+
+    const handleLoginWithPassword = async () => {
+        if (!email || !password) {
+            showToast('Please fill in all fields.', 'warning');
+            return;
+        }
+
+        if (!isValidEmail(email)) {
+            showToast('Please enter a valid email address.', 'warning');
+            return;
+        }
+
+        setPasswordLoading(true);
+
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email.trim().toLowerCase(),
+                password,
+            });
+
+            if (error) {
+                console.error('Sign in error:', error);
+
+                if (error.message.includes('Invalid login credentials') ||
+                    error.message.includes('Invalid email or password') ||
+                    error.message.includes('invalid_credentials')) {
+                    showToast('Invalid email or password. Please check your credentials.', 'error');
+                } else if (error.message.includes('Email not confirmed')) {
+                    showToast('Please verify your email address before signing in. Check your inbox for a verification link.', 'error');
+                } else if (error.message.includes('Too many requests')) {
+                    showToast('Too many login attempts. Please wait a few minutes before trying again.', 'error');
+                } else if (error.message.includes('User not found')) {
+                    showToast('No account found with this email address. Please sign up first.', 'error');
+                } else if (error.message.includes('Invalid email')) {
+                    showToast('Please enter a valid email address.', 'warning');
+                } else if (error.message.includes('signup_disabled')) {
+                    showToast('Account registration is currently disabled.', 'error');
+                } else {
+                    showToast(`Sign in failed: ${error.message}`, 'error');
+                }
+                return;
+            }
+
+            if (data.user) {
+                showToast('Successfully signed in!', 'success');
+                router.push('/');
+            }
+        } catch (err: any) {
+            console.error('Unexpected error:', err);
+            if (err.name === 'AbortError') {
+                showToast('Request timed out. Please try again.', 'error');
+            } else if (err.message?.includes('fetch')) {
+                showToast('Network error. Please check your connection and try again.', 'error');
+            } else {
+                showToast('An unexpected error occurred. Please try again.', 'error');
+            }
+        } finally {
+            setPasswordLoading(false);
+        }
+    };
+
+    const handleLoginWithMagic = async () => {
+        if (!email) {
+            showToast('Please enter your email address.', 'warning');
+            return;
+        }
+
+        if (!isValidEmail(email)) {
+            showToast('Please enter a valid email address.', 'warning');
+            return;
+        }
+
+        setMagicLoading(true);
+
+        try {
+            const { error } = await supabase.auth.signInWithOtp({
+                email: email.trim().toLowerCase(),
+                options: {
+                    emailRedirectTo: `${window.location.origin}/auth/callback`,
+                },
+            });
+
+            if (error) {
+                console.error('Magic link error:', error);
+
+                if (error.message.includes('Invalid email')) {
+                    showToast('Please enter a valid email address.', 'warning');
+                } else if (error.message.includes('Too many requests') ||
+                    error.message.includes('rate limit') ||
+                    error.message.includes('Email rate limit exceeded')) {
+                    showToast('Too many requests. Please wait a few minutes before requesting another magic link.', 'error');
+                } else if (error.message.includes('signup_disabled')) {
+                    showToast('Magic link sign-in is currently disabled.', 'error');
+                } else {
+                    showToast(`Failed to send magic link: ${error.message}`, 'error');
+                }
+                return;
+            }
+
+            showToast('Magic link sent! Check your email and click the link to sign in. Don\'t forget to check spam folder!', 'success');
+        } catch (err: any) {
+            console.error('Unexpected error:', err);
+            if (err.name === 'AbortError') {
+                showToast('Request timed out. Please try again.', 'error');
+            } else if (err.message?.includes('fetch')) {
+                showToast('Network error. Please check your connection and try again.', 'error');
+            } else {
+                showToast('An unexpected error occurred. Please try again.', 'error');
+            }
+        } finally {
+            setMagicLoading(false);
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        setGoogleLoading(true);
+
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                },
+            });
+
+            if (error) {
+                console.error('Google sign in error:', error);
+
+                if (error.message.includes('Provider not enabled')) {
+                    showToast('Google sign-in is not enabled. Please contact support.', 'error');
+                } else if (error.message.includes('signup_disabled')) {
+                    showToast('Google sign-in is currently disabled.', 'error');
+                } else {
+                    showToast(`Google sign in failed: ${error.message}`, 'error');
+                }
+                setGoogleLoading(false);
+                return;
+            }
+
+        } catch (err: any) {
+            console.error('Unexpected error:', err);
+            if (err.name === 'AbortError') {
+                showToast('Request timed out. Please try again.', 'error');
+            } else if (err.message?.includes('fetch')) {
+                showToast('Network error. Please check your connection and try again.', 'error');
+            } else {
+                showToast('Failed to sign in with Google. Please try again.', 'error');
+            }
+            setGoogleLoading(false);
+        }
+    };
+
+    const isAnyLoading = passwordLoading || magicLoading || googleLoading;
+
+    return (
+        <main className='flex justify-center min-h-screen lg:justify-start'>
+            <section className='w-full max-w-md lg:w-2/5 lg:max-w-none bg-base-100 flex flex-col justify-center lg:justify-start'>
+                <div className='w-full px-8 pt-4 pb-2'>
+                    <Image src={Oasis} alt="Oasis" width={50} height={50} />
+                </div>
+                <div className='w-full flex-1 flex justify-center lg:px-0 pt-4'>
+                    <div className='w-full sm:max-w-sm lg:max-w-none lg:w-7/10 flex flex-col max-w-none px-12 sm:px-0'>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-3xl font-semibold">Welcome back</span>
+                            <span className="text-sm font-medium text-base-content/70">Sign in to your account</span>
+                        </div>
+                        <div className="flex flex-col gap-4 mt-8">
+                            <div className="relative border flex rounded-md py-3 px-4 justify-between items-center border-base-300">
+                                <div className="text-xs font-medium absolute -top-2 left-2 bg-base-100 px-1">Choose your sign in method</div>
+                                <div className="text-sm font-semibold">Password</div>
+                                <input
+                                    type="checkbox"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setChecked(e.target.checked)}
+                                    className="toggle toggle-primary"
+                                    disabled={isAnyLoading}
+                                />
+                                <div className="text-sm font-semibold">Magic Link</div>
+                            </div>
+                            <div className="w-full flex flex-col gap-2">
+                                <span className="font-medium text-sm">Email</span>
+                                <div className="form-control">
+                                    <input
+                                        type="email"
+                                        placeholder="mail@site.com"
+                                        className="input input-bordered input-md w-full"
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                                        disabled={isAnyLoading}
+                                        required
+                                        value={email}
+                                    />
+                                </div>
+                            </div>
+
+                            {!checked && (
+                                <div className="w-full flex flex-col gap-2">
+                                    <div>
+                                        <span className="font-medium text-sm">Password</span>
+                                    </div>
+                                    <div className="form-control">
+                                        <input
+                                            type="password"
+                                            placeholder="Enter your password"
+                                            className="input input-bordered input-md w-full"
+                                            value={password}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                                            disabled={isAnyLoading}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-gray-500 my-6">
+                            <hr className="flex-grow border-t border-gray-300" />
+                            <span className="text-sm">or</span>
+                            <hr className="flex-grow border-t border-gray-300" />
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <button
+                                className="btn btn-outline w-full"
+                                onClick={handleGoogleLogin}
+                                disabled={isAnyLoading}
+                            >
+                                {googleLoading ? (
+                                    <span className="loading loading-spinner loading-sm"></span>
+                                ) : (
+                                    <svg aria-label="Google logo" width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                                        <g>
+                                            <path d="m0 0H512V512H0" fill="#fff"></path>
+                                            <path fill="#34a853" d="M153 292c30 82 118 95 171 60h62v48A192 192 0 0690 341"></path>
+                                            <path fill="#4285f4" d="m386 400a140 175 0 0053-179H260v74h102q-7 37-38 57"></path>
+                                            <path fill="#fbbc02" d="m90 341a208 200 0 010-171l63 49q-12 37 0 73"></path>
+                                            <path fill="#ea4335" d="m153 219c22-69 116-109 179-50l55-54c-78-75-230-72-297 55"></path>
+                                        </g>
+                                    </svg>
+                                )}
+                                {googleLoading ? 'Signing in...' : 'Sign in with Google'}
+                            </button>
+                            
+                            <button
+                                className="btn btn-primary w-full bg-brand"
+                                onClick={checked === true ? handleLoginWithMagic : handleLoginWithPassword}
+                                disabled={isAnyLoading}
+                            >
+                                {(checked ? magicLoading : passwordLoading) ? (
+                                    <span className="loading loading-spinner loading-sm"></span>
+                                ) : (
+                                    <svg aria-label="Email icon" width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                        <g strokeLinejoin="round" strokeLinecap="round" strokeWidth="2" fill="none" stroke="currentColor">
+                                            <rect width="20" height="16" x="2" y="4" rx="2"></rect>
+                                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                                        </g>
+                                    </svg>
+                                )}
+                                {checked ?
+                                    (magicLoading ? 'Sending Magic Link...' : 'Send Magic Link') :
+                                    (passwordLoading ? 'Signing in...' : 'Sign in with Email')
+                                }
+                            </button>
+                        </div>
+                        
+                        <div className="text-sm font-medium flex gap-1 justify-center mt-8">
+                            <span>Don't have an account?</span>
+                            <span className="link link-primary cursor-pointer text-brand" onClick={SignupClick}>
+                                Sign Up Now
+                            </span>
+                        </div>
+                        
+                        <div className="text-xs text-center mt-4 text-base-content/60">
+                            <span>By signing in, you agree to our </span>
+                            <span className="link link-primary text-xs" onClick={TermsClick}>
+                                Terms of Service
+                            </span>
+                            <span> and </span>
+                            <span className="link link-primary text-xs" onClick={PrivacyClick}>
+                                Privacy Policy
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section className="hidden lg:flex relative w-3/5 bg-base-200">
+                <div className="flex items-center justify-center w-full">
+                    <div className="text-center">
+                        <div className="mb-8">
+                            <LottieAnimation
+                                animationData={animationData}
+                                width={500}
+                                height={500}
+                            />
+                        </div>
+                        <h2 className="text-2xl font-bold text-base-content/80 mb-4">
+                            Welcome Back
+                        </h2>
+                        <p className="text-base-content/60 max-w-md mx-auto">
+                            Sign in to access your dashboard and connect with your community.
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    );
+};
+
+export default SignInPage;
