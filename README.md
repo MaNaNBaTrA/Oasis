@@ -179,4 +179,4 @@ oasis/
 
 ---
 
-Made with ❤️ by the Manan
+Made with ❤️ by Manan
