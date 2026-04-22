@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import dynamic from 'next/dynamic';
-import { MapPin, Shield, Camera, Brain, Recycle, Users, CheckCircle, Clock, AlertTriangle, ArrowRight, Star } from 'lucide-react';
+import { MapPin, Shield, Camera, Brain, Recycle, Users, CheckCircle, ArrowRight } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
 import { IGarbageReport } from '@/types';
 
 const MapView = dynamic(() => import('@/components/MapView'), {
@@ -42,6 +44,9 @@ interface GarbageReportsApiResponse {
 }
 
 const Homepage: React.FC = () => {
+  const router = useRouter();
+
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
   const [reports, setReports] = useState<IGarbageReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusCounts, setStatusCounts] = useState({
@@ -51,18 +56,34 @@ const Homepage: React.FC = () => {
     total: 0
   });
 
+  // Check Supabase session on mount
   useEffect(() => {
-    fetchRecentReports();
-  }, []);
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+
+      if (!data.session) {
+        router.replace('/signin');
+      } else {
+        setIsAuthChecked(true);
+      }
+    };
+
+    checkAuth();
+  }, [router]);
+
+  // Fetch reports only after auth is confirmed
+  useEffect(() => {
+    if (isAuthChecked) {
+      fetchRecentReports();
+    }
+  }, [isAuthChecked]);
 
   const fetchRecentReports = async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/garbage-reports?limit=20&sortBy=createdAt&sortOrder=desc');
-      
       if (response.ok) {
         const data: GarbageReportsApiResponse = await response.json();
-        
         if (data.success && data.data && data.data.reports) {
           setReports(data.data.reports);
           setStatusCounts({
@@ -129,8 +150,21 @@ const Homepage: React.FC = () => {
     }
   ];
 
+  // Show spinner while checking auth or during redirect
+  if (!isAuthChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-500 text-sm">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white">
+      {/* Hero Section */}
       <div className="relative overflow-hidden bg-white">
         <div className="container mx-auto px-4 py-20">
           <div className="max-w-4xl mx-auto text-center text-gray-900">
@@ -138,7 +172,7 @@ const Homepage: React.FC = () => {
               Oasis
             </h1>
             <p className="text-xl md:text-2xl mb-8 leading-relaxed text-gray-600">
-              A platform where citizens can easily raise garbage tickets using GPS or manual map selection, 
+              A platform where citizens can easily raise garbage tickets using GPS or manual map selection,
               track progress in real-time, and ensure safe cleanups with AI-verified safety protocols
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -161,6 +195,7 @@ const Homepage: React.FC = () => {
         </div>
       </div>
 
+      {/* Stats Section */}
       <div className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
@@ -184,18 +219,16 @@ const Homepage: React.FC = () => {
         </div>
       </div>
 
+      {/* How It Works Section */}
       <div className="py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              How It Works
-            </h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">How It Works</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Our comprehensive platform combines citizen reporting, AI verification, and real-time tracking 
+              Our comprehensive platform combines citizen reporting, AI verification, and real-time tracking
               to create a smarter, safer waste management system
             </p>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-6xl mx-auto">
             {features.map((feature, index) => (
               <div key={index} className="flex items-start space-x-6">
@@ -203,12 +236,8 @@ const Homepage: React.FC = () => {
                   <feature.icon className={`w-8 h-8 ${feature.color}`} />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-semibold text-gray-900 mb-3">
-                    {feature.title}
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    {feature.description}
-                  </p>
+                  <h3 className="text-2xl font-semibold text-gray-900 mb-3">{feature.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">{feature.description}</p>
                 </div>
               </div>
             ))}
@@ -216,20 +245,17 @@ const Homepage: React.FC = () => {
         </div>
       </div>
 
+      {/* Live Map Section */}
       <div className="py-20 bg-gray-50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Live Reports Map
-            </h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Live Reports Map</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               View all garbage reports in real-time on our interactive map. Track status updates and see cleanup progress across your area.
             </p>
           </div>
-
           <div className="bg-white rounded-2xl shadow-xl p-8 max-w-6xl mx-auto">
             <MapView reports={reports} height="500px" />
-            
             <div className="mt-8 flex justify-between items-center">
               <div className="text-sm text-gray-600">
                 Showing {reports.length} recent reports
@@ -246,18 +272,16 @@ const Homepage: React.FC = () => {
         </div>
       </div>
 
+      {/* AI Safety Section */}
       <div className="py-20">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-4xl font-bold text-gray-900 mb-4">
-                AI-Powered Safety Verification
-              </h2>
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">AI-Powered Safety Verification</h2>
               <p className="text-xl text-gray-600">
                 Using Roboflow RefTDR technology to ensure worker safety during cleanup operations
               </p>
             </div>
-
             <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="text-center">
@@ -287,40 +311,33 @@ const Homepage: React.FC = () => {
         </div>
       </div>
 
+      {/* Benefits Section */}
       <div className="py-20 bg-gray-50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Benefits for Communities
-            </h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Benefits for Communities</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Together, we make garbage reporting smarter, safer, and more sustainable
             </p>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {benefits.map((benefit, index) => (
               <div key={index} className="bg-white rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow">
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
                   <benefit.icon className="w-6 h-6 text-blue-600" />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                  {benefit.title}
-                </h3>
-                <p className="text-gray-600">
-                  {benefit.description}
-                </p>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">{benefit.title}</h3>
+                <p className="text-gray-600">{benefit.description}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
+      {/* CTA Section */}
       <div className="py-20 bg-white">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-4xl font-bold text-gray-900 mb-6">
-            Ready to Make a Difference?
-          </h2>
+          <h2 className="text-4xl font-bold text-gray-900 mb-6">Ready to Make a Difference?</h2>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
             Join thousands of citizens working together to keep our communities clean and sustainable
           </p>

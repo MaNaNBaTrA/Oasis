@@ -69,7 +69,7 @@ export default function LeftSidebar() {
     };
   }, [supabase]);
 
-  const isWorker = user?.role === 'Worker';
+  const isWorker = user?.role === 'worker' || user?.role === 'Worker';
 
   return (
     <div className="w-full h-full bg-nav px-5 py-8 flex flex-col gap-8 relative">

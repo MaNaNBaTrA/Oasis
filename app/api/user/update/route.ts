@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import User from '@/models/User';
 
+const VALID_ROLES = ['individual', 'worker'];
+
 export async function PUT(req: NextRequest) {
   try {
     await connectDB();
-    
-    const { email, firstName, lastName, number, address, imageUrl } = await req.json();
-    
+
+    const { email, firstName, lastName, number, address, imageUrl, role } = await req.json(); // ← added role
+
     if (!email) {
       return NextResponse.json(
         { error: 'Email is required' },
@@ -16,7 +18,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
-    
+
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
@@ -46,6 +48,17 @@ export async function PUT(req: NextRequest) {
 
     if (imageUrl !== undefined) {
       updateData.imageUrl = imageUrl.trim();
+    }
+
+    // ── Role update ──
+    if (role !== undefined) {
+      if (!VALID_ROLES.includes(role)) {
+        return NextResponse.json(
+          { error: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}` },
+          { status: 400 }
+        );
+      }
+      updateData.role = role;
     }
 
     const updatedUser = await User.findOneAndUpdate(
