@@ -32,11 +32,11 @@ const GarbageReport = mongoose.models.GarbageReport || mongoose.model('GarbageRe
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
 ) {
   try {
+    const { id: reportId } = await params;  // ✅ await params to get id
     const { status } = await req.json();
-    const reportId = params.id;
 
     if (!status) {
       return NextResponse.json(
